@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 
-namespace Финансовый_трекер
+namespace Finance_control
 {
     /// <summary>
     /// Логика взаимодействия для App.xaml

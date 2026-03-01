@@ -8,7 +8,7 @@
 // </auto-generated>
 //------------------------------------------------------------------------------
 
-namespace Финансовый_трекер.Properties
+namespace Finance_control.Properties
 {
 
 
