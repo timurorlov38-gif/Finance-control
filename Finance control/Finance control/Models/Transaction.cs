@@ -1,6 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
 
-namespace Финансовый_трекер.Models
+namespace Finance_control.Models
 {
     public class Transaction
     {
@@ -8,6 +12,7 @@ namespace Финансовый_трекер.Models
         public decimal Amount { get; set; }
         public string Description { get; set; }
         public DateTime Date { get; set; }
-        public bool IsIncome { get; set; } // true = доход, false = расход
+        public bool IsIncome { get; set; }
+        public int WalletId { get; set; }  // ⬅️ ДОБАВЬТЕ ЭТУ СТРОКУ
     }
 }

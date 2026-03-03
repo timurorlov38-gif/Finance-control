@@ -55,6 +55,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
+    <Compile Include="Models\Wallet.cs" />
     <Compile Include="StatisticPage.xaml.cs">
       <DependentUpon>StatisticPage.xaml</DependentUpon>
     </Compile>
