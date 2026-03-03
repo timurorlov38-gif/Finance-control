@@ -1,380 +1,302 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using Финансовый_трекер.Models;
+using Finance_control.Models;
+using Finance_control;
 
-namespace Финансовый_трекер
+
+namespace Finance_control
 {
     public partial class MainWindow : Window
     {
         private List<Transaction> transactions = new List<Transaction>();
-        private decimal balance = 0;
-        private int nextId = 1;
-        private decimal expenseLimit = 30000;
+        private List<Wallet> wallets = new List<Wallet>();
+        private int currentWalletId = 1;
         private bool isLocked = false;
-        private const string CORRECT_PIN = "1234";
+        private int monthlyLimit = 30000;
 
         public MainWindow()
         {
             InitializeComponent();
-            UpdateBalanceDisplay();
+            InitializeWallets();
+            UpdateWalletsList();
+            UpdateTotalBalanceDisplay();
             UpdateLimitDisplay();
-            PasswordBox.PasswordChanged += PasswordBox_PasswordChanged;
-
         }
 
-        // === ОБРАБОТЧИКИ ДЛЯ НОВЫХ ЭЛЕМЕНТОВ ===
-
-        private void PasswordBox_PasswordChanged(object sender, RoutedEventArgs e)
+        private void InitializeWallets()
         {
-            // Проверяем только если приложение заблокировано
-            if (isLocked)
+            wallets.Add(new Wallet(1, "Основной", "💳", "#3498DB"));
+            wallets.Add(new Wallet(2, "Наличные", "💰", "#27AE60"));
+            wallets.Add(new Wallet(3, "Сберегательный", "🏦", "#9B59B6"));
+
+            WalletComboBox.SelectedIndex = 0;
+        }
+
+        private void UpdateWalletsList()
+        {
+            WalletsList.ItemsSource = null;
+            WalletsList.ItemsSource = wallets;
+
+            decimal totalBalance = wallets.Sum(w => w.Balance);
+            TotalWalletsBalanceText.Text = $"{totalBalance:N0} ₽";
+        }
+
+        private void UpdateWalletBalanceDisplay()
+        {
+            var currentWallet = wallets.FirstOrDefault(w => w.Id == currentWalletId);
+            if (currentWallet != null)
             {
-                if (PasswordBox.Password == "1234")
-                {
-                    UnlockApp();
-                }
-                else if (PasswordBox.Password.Length == 4)
-                {
-                    // Неверный PIN из 4 символов
-                    SecurityStatus.Text = "❌ Неверный PIN";
-                    SecurityStatus.Foreground = Brushes.Red;
-                }
+                WalletBalanceText.Text = $"Баланс кошелька: {currentWallet.Balance:N0} ₽";
             }
         }
-        private void ShowStatistics_Click(object sender, RoutedEventArgs e)
+
+        private void UpdateTotalBalanceDisplay()
         {
-            // Подсчёт статистики
-            int totalTransactions = transactions.Count;
-            decimal totalIncome = 0;
-            decimal totalExpense = 0;
+            decimal totalBalance = wallets.Sum(w => w.Balance);
+            BalanceText.Text = $"{totalBalance:N0} ₽";
 
-            foreach (var t in transactions)
-            {
-                if (t.IsIncome)
-                    totalIncome += t.Amount;
-                else
-                    totalExpense += t.Amount;
-            }
-
-            // Переход на страницу статистики через Frame
-            StatsFrame.Navigate(new StatisticsPage(totalTransactions, totalIncome, totalExpense));
-        }
-        private void LockImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            isLocked = !isLocked;
-
-            if (isLocked)
-            {
-                LockApp();
-            }
+            if (totalBalance >= 0)
+                BalanceText.Foreground = Brushes.White;
             else
+                BalanceText.Foreground = Brushes.LightCoral;
+        }
+
+        private void WalletComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (WalletComboBox.SelectedIndex >= 0 && WalletComboBox.SelectedIndex < wallets.Count)
             {
-                UnlockApp();
+                currentWalletId = wallets[WalletComboBox.SelectedIndex].Id;
+                UpdateWalletBalanceDisplay();
             }
-        }
-        private void LockApp()
-        {
-            SecurityStatus.Text = "🔒 ЗАБЛОКИРОВАНО";
-            SecurityStatus.Foreground = Brushes.OrangeRed;
-
-            AmountBox.IsEnabled = false;
-            DescriptionBox.IsEnabled = false;
-            IncomeCheckBox.IsEnabled = false;
-            PasswordBox.IsEnabled = true;
-            PasswordBox.Focus();
-            PasswordBox.Clear();
-        }
-
-        private void UnlockApp()
-        {
-            SecurityStatus.Text = "✅ Разблокировано";
-            SecurityStatus.Foreground = Brushes.Green;
-
-            AmountBox.IsEnabled = true;
-            DescriptionBox.IsEnabled = true;
-            IncomeCheckBox.IsEnabled = true;
-            PasswordBox.IsEnabled = true;
-            PasswordBox.Clear();
-
-            AmountBox.Focus();
-        }
-
-        private void ResetPin_Click(object sender, RoutedEventArgs e)
-        {
-            PasswordBox.Clear();
-            SecurityStatus.Text = "Разблокировано";
-            SecurityStatus.Foreground = Brushes.Green;
-            PasswordBox.Focus();
-        }
-
-        // === ОБРАБОТЧИКИ ДЛЯ СУЩЕСТВУЮЩИХ ЭЛЕМЕНТОВ ===
-
-        private void AmountBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (AmountBox.Text.Length > 0)
-            {
-                AmountBox.ToolTip = $"Введено: {AmountBox.Text} ₽";
-            }
-        }
-
-        private void DescriptionBox_TextChanged(object sender, TextChangedEventArgs e)
-        {
-            if (DescriptionBox.Text.Length > 0)
-            {
-                DescriptionBox.ToolTip = $"Описание: {DescriptionBox.Text}";
-            }
-        }
-
-        private void IncomeCheckBox_Checked(object sender, RoutedEventArgs e)
-        {
-            IncomeCheckBox.ToolTip = "Тип: ДОХОД 💰";
-        }
-
-        private void IncomeCheckBox_Unchecked(object sender, RoutedEventArgs e)
-        {
-            IncomeCheckBox.ToolTip = "Тип: РАСХОД 💸";
         }
 
         private void AddTransaction_Click(object sender, RoutedEventArgs e)
         {
             if (isLocked)
             {
-                MessageBox.Show("Приложение заблокировано! Введите PIN-код.", "Ошибка",
-                                MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show("Приложение заблокировано. Введите PIN для разблокировки.", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
-            decimal amount;
-            if (!decimal.TryParse(AmountBox.Text, out amount) || amount <= 0)
+            decimal amount = 0;
+
+            if (!decimal.TryParse(AmountBox.Text, out amount))
             {
-                MessageBox.Show("Введите корректную сумму больше 0!", "Ошибка",
-                                MessageBoxButton.OK, MessageBoxImage.Warning);
-                AmountBox.Focus();
+                MessageBox.Show("Введите корректную сумму!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            if (string.IsNullOrWhiteSpace(DescriptionBox.Text))
+            if (amount <= 0)
             {
-                MessageBox.Show("Введите описание транзакции!", "Ошибка",
-                                MessageBoxButton.OK, MessageBoxImage.Warning);
-                DescriptionBox.Focus();
+                MessageBox.Show("Сумма должна быть больше нуля!", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            bool isIncome = IncomeCheckBox.IsChecked == true;
+            string description = DescriptionBox.Text.Trim();
+            if (string.IsNullOrEmpty(description))
+                description = "Без описания";
+
+            bool isIncome = IsIncomeCheckBox.IsChecked == true;
 
             var transaction = new Transaction
             {
-                Id = nextId++,
+                Id = transactions.Count + 1,
                 Amount = amount,
-                Description = DescriptionBox.Text.Trim(),
+                Description = description,
                 Date = DateTime.Now,
-                IsIncome = isIncome
+                IsIncome = isIncome,
+                WalletId = currentWalletId
             };
 
             transactions.Add(transaction);
 
-            if (isIncome)
+            var wallet = wallets.FirstOrDefault(w => w.Id == currentWalletId);
+            if (wallet != null)
             {
-                balance += amount;
-            }
-            else
-            {
-                balance -= amount;
+                if (isIncome)
+                    wallet.Balance += amount;
+                else
+                    wallet.Balance -= amount;
             }
 
-            UpdateBalanceDisplay();
+            UpdateWalletBalanceDisplay();
+            UpdateWalletsList();
+            UpdateTotalBalanceDisplay();
             AddTransactionToUI(transaction);
-            CheckLimitWarning();
+            CheckLimit();
 
             AmountBox.Clear();
             DescriptionBox.Clear();
-            IncomeCheckBox.IsChecked = false;
-            AmountBox.Focus();
-
-            MessageBox.Show($"✅ Транзакция добавлена!\n\n" +
-                          $"Тип: {(isIncome ? "Доход 💰" : "Расход 💸")}\n" +
-                          $"Сумма: {amount} ₽\n" +
-                          $"Описание: {transaction.Description}",
-                          "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+            IsIncomeCheckBox.IsChecked = false;
         }
 
         private void AddTransactionToUI(Transaction transaction)
         {
-            var border = new Border
+            Border border = new Border
             {
-                Background = Brushes.White,
+                Background = transaction.IsIncome ? (Brush)new BrushConverter().ConvertFromString("#E8F8F5") : (Brush)new BrushConverter().ConvertFromString("#FADBD8"),
                 CornerRadius = new CornerRadius(5),
                 Padding = new Thickness(10),
-                Margin = new Thickness(0, 0, 0, 10)
+                Margin = new Thickness(0, 0, 0, 10),
+                BorderBrush = transaction.IsIncome ? Brushes.LightGreen : Brushes.LightCoral,
+                BorderThickness = new Thickness(2, 0, 0, 0)
             };
 
-            var stackPanel = new StackPanel { Orientation = Orientation.Horizontal };
+            StackPanel stackPanel = new StackPanel();
 
-            var indicator = new Border
+            TextBlock amountText = new TextBlock
             {
-                Width = 10,
-                Height = 60,
-                Background = transaction.IsIncome ? Brushes.LightGreen : Brushes.LightCoral,
-                CornerRadius = new CornerRadius(3, 0, 0, 3),
-                Margin = new Thickness(0, 0, 10, 0)
-            };
-            stackPanel.Children.Add(indicator);
-
-            var detailsPanel = new StackPanel();
-
-            detailsPanel.Children.Add(new TextBlock
-            {
-                Text = $"{(transaction.IsIncome ? "+" : "-")} {transaction.Amount:N2} ₽",
-                FontSize = 18,
+                Text = (transaction.IsIncome ? "+ " : "- ") + $"{transaction.Amount:N0} ₽",
                 FontWeight = FontWeights.Bold,
-                Foreground = transaction.IsIncome ? Brushes.DarkGreen : Brushes.DarkRed
-            });
+                FontSize = 16,
+                Foreground = transaction.IsIncome ? Brushes.Green : Brushes.Red
+            };
 
-            detailsPanel.Children.Add(new TextBlock
+            TextBlock descText = new TextBlock
             {
                 Text = transaction.Description,
                 FontSize = 14,
-                Margin = new Thickness(0, 3, 0, 0),
-                FontWeight = FontWeights.Medium
-            });
+                Margin = new Thickness(0, 5, 0, 0)
+            };
 
-            detailsPanel.Children.Add(new TextBlock
+            TextBlock dateText = new TextBlock
             {
                 Text = $"🕐 {transaction.Date:dd.MM.yyyy HH:mm}",
                 FontSize = 12,
                 Foreground = Brushes.Gray,
-                FontStyle = FontStyles.Italic,
-                Margin = new Thickness(0, 3, 0, 0)
-            });
+                Margin = new Thickness(0, 5, 0, 0)
+            };
 
-            detailsPanel.Children.Add(new TextBlock
+            stackPanel.Children.Add(amountText);
+            stackPanel.Children.Add(descText);
+            stackPanel.Children.Add(dateText);
+
+            border.Child = stackPanel;
+
+            Border finalBorder = new Border
             {
-                Text = $"ID: #{transaction.Id}",
-                FontSize = 10,
-                Foreground = Brushes.LightGray,
-                Margin = new Thickness(0, 2, 0, 0)
-            });
+                Child = border,
+                Tag = transaction.Id
+            };
 
-            stackPanel.Children.Add(detailsPanel);
+            DockPanel panel = new DockPanel();
+            panel.Children.Add(finalBorder);
 
-            var deleteButton = new Button
+            Button deleteButton = new Button
             {
                 Content = "🗑️",
                 Width = 40,
                 Height = 40,
-                Margin = new Thickness(10, 0, 0, 0),
                 Background = Brushes.IndianRed,
                 Foreground = Brushes.White,
-                FontSize = 18,
+                FontWeight = FontWeights.Bold,
                 Cursor = Cursors.Hand,
-                ToolTip = new ToolTip { Content = "Удалить транзакцию" }
+                Tag = transaction.Id,
+                Margin = new Thickness(10, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Stretch
             };
-            deleteButton.Click += (s, e) => DeleteTransaction(transaction, border);
-            stackPanel.Children.Add(deleteButton);
+            deleteButton.Click += DeleteTransaction_Click;
+            panel.Children.Add(deleteButton);
 
-            border.Child = stackPanel;
-            TransactionsPanel.Children.Insert(0, border);
-
-            TransactionsScroll.ScrollToTop();
+            TransactionsList.Children.Add(panel);
         }
 
-        private void DeleteTransaction(Transaction transaction, Border borderElement)
+        private void DeleteTransaction_Click(object sender, RoutedEventArgs e)
         {
-            var result = MessageBox.Show(
-                $"Удалить транзакцию?\n\n{transaction.Description}\n{transaction.Amount} ₽",
-                "Подтверждение", MessageBoxButton.YesNo, MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
+            Button button = sender as Button;
+            if (button != null && button.Tag != null)
             {
-                if (transaction.IsIncome)
+                int id = (int)button.Tag;
+
+                var transaction = transactions.FirstOrDefault(t => t.Id == id);
+                if (transaction != null)
                 {
-                    balance -= transaction.Amount;
+                    var wallet = wallets.FirstOrDefault(w => w.Id == transaction.WalletId);
+                    if (wallet != null)
+                    {
+                        if (transaction.IsIncome)
+                            wallet.Balance -= transaction.Amount;
+                        else
+                            wallet.Balance += transaction.Amount;
+                    }
+
+                    transactions.Remove(transaction);
+
+                    DockPanel dockPanel = button.Parent as DockPanel;
+                    if (dockPanel != null)
+                    {
+                        StackPanel parentPanel = dockPanel.Parent as StackPanel;
+                        if (parentPanel != null)
+                        {
+                            parentPanel.Children.Remove(dockPanel);
+                        }
+                    }
+
+                    UpdateWalletBalanceDisplay();
+                    UpdateWalletsList();
+                    UpdateTotalBalanceDisplay();
                 }
-                else
-                {
-                    balance += transaction.Amount;
-                }
-
-                transactions.Remove(transaction);
-                UpdateBalanceDisplay();
-                CheckLimitWarning();
-
-                TransactionsPanel.Children.Remove(borderElement);
-
-                MessageBox.Show("Транзакция удалена", "Информация",
-                              MessageBoxButton.OK, MessageBoxImage.Information);
             }
         }
-
-        private void UpdateBalanceDisplay()
+        private void CheckLimit()
         {
-            BalanceText.Text = $"{balance:N0} ₽";
+            decimal totalExpenses = transactions.Where(t => !t.IsIncome).Sum(t => t.Amount);
 
-            if (balance < 0)
+            if (totalExpenses > monthlyLimit)
             {
-                BalanceText.Foreground = Brushes.OrangeRed;
-                BalanceText.ToolTip = "Отрицательный баланс!";
+                MessageBox.Show($"⚠️ ВНИМАНИЕ!\n\nВы превысили месячный лимит расходов!\nПотрачено: {totalExpenses:N0} ₽\nЛимит: {monthlyLimit:N0} ₽\nПревышение: {totalExpenses - monthlyLimit:N0} ₽",
+                    "Превышение лимита!", MessageBoxButton.OK, MessageBoxImage.Warning);
             }
-            else if (balance > 0)
-            {
-                BalanceText.Foreground = Brushes.LightGreen;
-                BalanceText.ToolTip = "Положительный баланс";
-            }
-            else
-            {
-                BalanceText.Foreground = Brushes.White;
-                BalanceText.ToolTip = "Баланс равен нулю";
-            }
-        }
-
-        private void LimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-        {
-            UpdateLimitDisplay();
-            CheckLimitWarning();
         }
 
         private void UpdateLimitDisplay()
         {
-            expenseLimit = (decimal)LimitSlider.Value;
-            if (LimitValueText != null)
-            {
-                LimitValueText.Text = $"Лимит: {expenseLimit:N0} ₽";
-            }
+            LimitValueText.Text = $"Лимит: {monthlyLimit:N0} ₽";
         }
 
-        private void CheckLimitWarning()
+        private void LockImage_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            if (LimitWarningText == null || LimitValueText == null)
-                return;
+            isLocked = !isLocked;
 
-            decimal totalExpenses = 0;
-            foreach (var t in transactions)
+            if (isLocked)
             {
-                if (!t.IsIncome)
-                {
-                    totalExpenses += t.Amount;
-                }
-            }
-
-            if (totalExpenses > expenseLimit)
-            {
-                LimitWarningText.Text = $"⚠️ Превышен лимит на {totalExpenses - expenseLimit:N0} ₽!";
-                LimitWarningText.Visibility = Visibility.Visible;
-                LimitValueText.Foreground = Brushes.Red;
+                SecurityStatus.Text = "Заблокировано";
+                SecurityStatus.Foreground = Brushes.Red;
+                AmountBox.IsEnabled = false;
+                DescriptionBox.IsEnabled = false;
+                IsIncomeCheckBox.IsEnabled = false;
+                WalletComboBox.IsEnabled = false;
             }
             else
             {
-                decimal remaining = expenseLimit - totalExpenses;
-                LimitWarningText.Text = $"✓ Осталось: {remaining:N0} ₽";
-                LimitWarningText.Visibility = Visibility.Visible;
-                LimitWarningText.Foreground = Brushes.Green;
-                LimitValueText.Foreground = Brushes.OrangeRed;
+                SecurityStatus.Text = "Разблокировано";
+                SecurityStatus.Foreground = Brushes.Green;
+                AmountBox.IsEnabled = true;
+                DescriptionBox.IsEnabled = true;
+                IsIncomeCheckBox.IsEnabled = true;
+                WalletComboBox.IsEnabled = true;
             }
+        }
+
+        private void ResetPin_Click(object sender, RoutedEventArgs e)
+        {
+            PinBox.Clear();
+            MessageBox.Show("PIN сброшен", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void ShowStatistics_Click(object sender, RoutedEventArgs e)
+        {
+            int totalTransactions = transactions.Count;
+            decimal totalIncome = transactions.Where(t => t.IsIncome).Sum(t => t.Amount);
+            decimal totalExpense = transactions.Where(t => !t.IsIncome).Sum(t => t.Amount);
+
+            StatisticsPage statsPage = new StatisticsPage(totalTransactions, totalIncome, totalExpense);
+            this.Content = statsPage;
         }
     }
 }

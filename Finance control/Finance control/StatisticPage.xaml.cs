@@ -1,8 +1,11 @@
 ﻿using System;
 using System.Windows;
 using System.Windows.Controls;
+using Finance_control;
+using System.Linq;
 
-namespace Финансовый_трекер
+
+namespace Finance_control
 {
     public partial class StatisticsPage : Page
     {
@@ -17,26 +20,16 @@ namespace Финансовый_трекер
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            try
-            {
-                if (NavigationService != null && NavigationService.CanGoBack)
-                {
-                    NavigationService.GoBack();
-                }
-                else
-                {
-                    // Альтернативный способ - найти MainWindow и очистить Frame
-                    var mainWindow = Application.Current.MainWindow as MainWindow;
-                    if (mainWindow != null)
-                    {
-                        mainWindow.StatsFrame.Content = null;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Ошибка возврата: {ex.Message}");
-            }
+            // Простой возврат к главному окну
+            MainWindow mainWindow = new MainWindow();
+            mainWindow.Show();
+
+            // Закрыть текущее окно статистики
+            Window window = Application.Current.Windows
+                .Cast<Window>()
+                .FirstOrDefault(w => w.IsActive);
+            window?.Close();
+        }
+            
         }
     }
-}
