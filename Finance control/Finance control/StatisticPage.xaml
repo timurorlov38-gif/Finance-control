@@ -1,4 +1,4 @@
-﻿<Page x:Class="Finance_control.StatisticsPage"
+﻿<Page x:Class="Финансовый_трекер.StatisticsPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       Title="Статистика" 
